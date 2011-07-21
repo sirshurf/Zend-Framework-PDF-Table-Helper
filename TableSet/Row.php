@@ -3,7 +3,7 @@
 /**
  * Represents a column in a row in a table in a PDF file.
  */
-class SirShurf_Pdf_TableSet_Row implements ArrayAccess, IteratorAggregate {
+class SirShurf_Pdf_TableSet_Row implements Iterator, Countable {
 	/**
 	 * Array containing all columns in the row.
 	 *
@@ -17,6 +17,22 @@ class SirShurf_Pdf_TableSet_Row implements ArrayAccess, IteratorAggregate {
 	 * @var int
 	 */
 	private $_numCols;
+	
+	/**
+	 * Array of Widths of columns
+	 * 
+	 * @var array
+	 */
+	private $_colWidths;
+	
+	/**
+	 * 
+	 * Pdf Table Set Object
+	 * @var SirShurf_Pdf_TableSet
+	 */
+	private $_pdfTableSet;
+	
+	private $_sideMargin;
 	
 	/**
 	 * Instantiates the row class.
@@ -34,7 +50,7 @@ class SirShurf_Pdf_TableSet_Row implements ArrayAccess, IteratorAggregate {
 	 *
 	 */
 	public function addCol($text = "", $options = array()) {
-		$this->_cols [$this->_numCols] = new SirShurf_Pdf_TableSet_Column( $text, $options );
+		$this->_cols [$this->_numCols] = new SirShurf_Pdf_TableSet_Column ( $text, $options );
 		
 		$this->_numCols ++;
 		
@@ -65,90 +81,161 @@ class SirShurf_Pdf_TableSet_Row implements ArrayAccess, IteratorAggregate {
 		return $maxHeight * 0.9;
 	}
 	
-    public function getIterator()
-    {
-        return new ArrayIterator((array) $this->_data);
-    }
-    
-    /**
-     * Proxy to __isset
-     * Required by the ArrayAccess implementation
-     *
-     * @param string $offset
-     * @return boolean
-     */
-    public function offsetExists($offset)
-    {
-        return $this->__isset($offset);
-    }
-
-    /**
-     * Proxy to __get
-     * Required by the ArrayAccess implementation
-     *
-     * @param string $offset
-     * @return string
-     */
-     public function offsetGet($offset)
-     {
-         return $this->__get($offset);
-     }
-
-     /**
-      * Proxy to __set
-      * Required by the ArrayAccess implementation
-      *
-      * @param string $offset
-      * @param mixed $value
-      */
-     public function offsetSet($offset, $value)
-     {
-         $this->__set($offset, $value);
-     }
-
-     /**
-      * Proxy to __unset
-      * Required by the ArrayAccess implementation
-      *
-      * @param string $offset
-      */
-     public function offsetUnset($offset)
-     {
-         return $this->__unset($offset);
-     }
+	/** 
+	 * Array of column widths (Calculated)
+	 * 
+	 * @param array $colWidths
+	 * @return SirShurf_Pdf_TableSet_Row
+	 */
+	public function setColWidths(array $colWidths) {
+		$this->_colWidths = $colWidths;
+		return $this;
+	}
+	
+	/** 
+	 * Side Margin
+	 * 
+	 * @param array $colWidths
+	 * @return SirShurf_Pdf_TableSet_Row
+	 */
+	public function setSideMargin($sideMargin) {
+		$this->_sideMargin = $sideMargin;
+		return $this;
+	}
+	
+	/**
+	 * 
+	 * Set Zend Pdf Object
+	 * @param SirShurf_Pdf_TableSet $pdf
+	 * @return SirShurf_Pdf_TableSet
+	 */
+	public function setPdfTableSet(SirShurf_Pdf_TableSet $pdfTableSet) {
+		$this->_pdfTableSet = $pdfTableSet;
+		return $this;
+	}
 	
 	public function render() {
-		// Center the table if the flag is set.
-		if ($this->getOption ( 'align' ) == 'center') {
-			// Calculate the distance between the width of the table and the margins.
-			$difference = ($maxWidth - $tableWidth) / 2;
-			if ($difference < 0) {
-				$difference = 0;
-			}
-			$x = $this->_sideMargin + $difference;
-		} else {
-			$x = $this->_sideMargin;
-		}
-		
-		// Wrap the page if necessary.
-		if ($this->_currentHeight <= ($this->_heightMargin / 2)) {
-			$this->_currentPage ++;
-			$pdf->pages [$this->_currentPage] = $this->_pdf->newPage ( $this->_paperSize );
-			$this->_currentHeight = $this->_maxHeight - ($this->_heightMargin);
-		}
-		
 		// The real key tracks the column to use during colspanned rows.
 		$realKey = 0;
 		
-		foreach ( $this as $key => $col ) {
-			$col->render();
-		}
+		$currentRowPosition = $this->_sideMargin;
 		
-		// Move the line height pointer by the number of actual lines drawn (> 1 when line wrapping).
-		if ($numLines > 0) {
-			$this->_currentHeight -= $this->getHeight () * $numLines;
+		foreach ( $this as $col ) {
+			
+			$col->setPdfTableSet ( $this->_pdfTableSet );
+			
+			$col->setWidth ( $this->_colWidths [$realKey] );
+			
+			$currentRowPosition = $col->render ( $currentRowPosition );
+			
+			// Column spanning.
+			// Must calculate before wrapping text.
+			// :TODO FIX HERE, COLSPANING!!!!
+			if ($col->getOption ( 'colspan' )) {
+				$colspan = $col->getOption ( 'colspan' );
+				if ($colspan > $this->_numCols) {
+					$colspan = $this->_numCols;
+				}
+				$size = 0;
+				for($i = 0; $i < $colspan; $i ++) {
+					$index = $realKey + $i;
+					if (isset ( $this->_colWidths [$index] )) {
+						$size += $this->_colWidths [$index];
+					}
+				}
+				$offset = $size;
+				$realKey += $colspan;
+			} else {
+				$realKey ++;
+			}
+			
+			$this->findMaxHeight ( $col->getColumngHeight () );
+		}
+		$this->setCurrentHeight();
+		return $this->_currentHeight;
+	}
+	
+	public function findMaxHeight($intHeight) {	
+		if ($this->intLineHeight < $intHeight){
+			$this->intLineHeight = $intHeight;
+		}
+		return $this;
+	}	
+	
+	public function setCurrentHeight() {			
+		$this->_pdfTableSet->setHeight($this->_pdfTableSet->getCurrentRow() - $this->intLineHeight);
+		return $this;
+	}
+	
+	// Interfaces: Iterator, Countable
+	
+
+	/**
+	 * Current Table Columns
+	 *
+	 * @return SirShurf_Pdf_TableSet_Column
+	 */
+	public function current() {
+		//        $this->_sort();
+		current ( $this->_cols );
+		$key = key ( $this->_cols );
+		
+		if (isset ( $this->_cols [$key] )) {
+			return $this->_cols [$key];
 		} else {
-			$this->_currentHeight -= $this->getHeight ();
+			// :TODO CORRECT EXCEPTION
+			require_once 'Zend/Form/Exception.php';
+			throw new Zend_Form_Exception ( sprintf ( 'Corruption detected in form; invalid key ("%s") found in internal iterator', ( string ) $key ) );
 		}
 	}
+	
+	/**
+	 * Current column name
+	 *
+	 * @return string
+	 */
+	public function key() {
+		//        $this->_sort();
+		return key ( $this->_cols );
+	}
+	
+	/**
+	 * Move pointer to next element/subform/display group
+	 *
+	 * @return void
+	 */
+	public function next() {
+		//        $this->_sort();
+		next ( $this->_cols );
+	}
+	
+	/**
+	 * Move pointer to beginning of element/subform/display group loop
+	 *
+	 * @return void
+	 */
+	public function rewind() {
+		//        $this->_sort();
+		reset ( $this->_cols );
+	}
+	
+	/**
+	 * Determine if current element/subform/display group is valid
+	 *
+	 * @return bool
+	 */
+	public function valid() {
+		//        $this->_sort();
+		return (current ( $this->_cols ) !== false);
+	}
+	
+	/**
+	 * Count of elements/subforms that are iterable
+	 *
+	 * @return int
+	 */
+	public function count() {
+		return count ( $this->_cols );
+	}
+
 }

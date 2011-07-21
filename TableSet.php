@@ -33,38 +33,7 @@ class SirShurf_Pdf_TableSet {
 	 */
 	private $_sideMargin;
 	private $_heightMargin;
-	
-	/**
-	 * The Font to use for text output. Options are:
-	 * Zend_Pdf_Font::FONT_COURIER
-	 * Zend_Pdf_Font::FONT_COURIER_BOLD
-	 * Zend_Pdf_Font::FONT_COURIER_OBLIQUE (identical to Zend_Pdf_Font::FONT_COURIER_ITALIC)
-	 * Zend_Pdf_Font::FONT_COURIER_BOLD_OBLIQUE (identical to Zend_Pdf_Font::FONT_COURIER_BOLD_ITALIC)
-	 * Zend_Pdf_Font::FONT_HELVETICA
-	 * Zend_Pdf_Font::FONT_HELVETICA_BOLD
-	 * Zend_Pdf_Font::FONT_HELVETICA_OBLIQUE (identical to Zend_Pdf_Font::FONT_HELVETICA_ITALIC)
-	 * Zend_Pdf_Font::FONT_HELVETICA_BOLD_OBLIQUE (identical to Zend_Pdf_Font::FONT_HELVETICA_BOLD_ITALIC)
-	 * Zend_Pdf_Font::FONT_SYMBOL
-	 * Zend_Pdf_Font::FONT_TIMES_ROMAN
-	 * Zend_Pdf_Font::FONT_TIMES
-	 * Zend_Pdf_Font::FONT_TIMES_BOLD
-	 * Zend_Pdf_Font::FONT_TIMES_ITALIC
-	 * Zend_Pdf_Font::FONT_ZAPFDINGBATS
-	 *
-	 * @var object
-	 */
-	private $_font;
-	private $_fontBold;
-	
-	/**
-	 * The font size to use for text output. Units are Points.
-	 * The type stores the currently used type.
-	 *
-	 * @var int
-	 */
-	private $_fontSize;
-	private $_fontType;
-	
+
 	/**
 	 * Height and Width of the page. Based off the paper size. Units are Points.
 	 *
@@ -111,6 +80,7 @@ class SirShurf_Pdf_TableSet {
 	
 	private $_currentPage;
 	private $_currentHeight;
+	private $_currentWidth;
 	
 	public function __construct(Zend_Pdf $pdf = null, $options = null) {
 		if (empty ( $pdf )) {
@@ -135,7 +105,7 @@ class SirShurf_Pdf_TableSet {
 		if (is_null ( $this->_currentPage )) {
 			// First Page
 			$this->setPage ( 0 );
-			$pdf->pages [$this->_currentPage] = $this->_pdf->newPage ( $this->_paperSize );
+			$this->_pdf->pages [$this->_currentPage] = $this->_pdf->newPage ( $this->_paperSize );
 		}
 		
 		if (is_null ( $this->_currentHeight )) {
@@ -179,7 +149,6 @@ class SirShurf_Pdf_TableSet {
 	 */
 	private function _setOptions($options = null) {
 		
-		$this->setFont ();
 		$this->setPaperSize ();
 		$this->setMargin ();
 		
@@ -190,7 +159,7 @@ class SirShurf_Pdf_TableSet {
 		
 		// Add the header image.
 		if (! empty ( $this->_headerImage )) {
-			$this->_drowHeaderImage ();
+			$this->_drawHeaderImage ();
 		} else {
 			// If no header, set the first line below the margin.
 			$this->_currentHeight = $this->_maxHeight - $this->_heightMargin;
@@ -198,18 +167,23 @@ class SirShurf_Pdf_TableSet {
 		
 		// Layout all columns.
 		foreach ( $this->_tables as $table ) {
+			$table->setPdfTableSet($this);
+			$table->setMax($this->_maxHeight, $this->_maxWidth);
+			$table->setCurrentHeight($this->_currentHeight);
+			$table->setMargins($this->_sideMargin, $this->_heightMargin);
 			$table->render();
+//			$this->setHeight();
 		}
 		
 		// Add the signature
 		if (! empty ( $this->_signatureFile )) {
-			$this->_drowFooterImage ( $this->_currentHeight, $this->_currentPage );
+			$this->_drawFooterImage ( $this->_currentHeight, $this->_currentPage );
 		}
 		
 		return $this->_pdf;
 	}
 	
-	private function _drowHeaderImage() {
+	private function _drawHeaderImage() {
 		$image = Zend_Pdf_Image::imageWithPath ( $this->_headerImage );
 		
 		// Convert from pixels to points.
@@ -238,7 +212,7 @@ class SirShurf_Pdf_TableSet {
 	
 	}
 	
-	private function _drowFooterImage() {
+	private function _drawFooterImage() {
 		$image = Zend_Pdf_Image::imageWithPath ( $this->_footerImage );
 		
 		// Convert from pixels to points.
@@ -275,25 +249,6 @@ class SirShurf_Pdf_TableSet {
 	public function build($fileName) {
 		// Save it.
 		$this->render ()->save ( $fileName );
-	}
-	
-	/**
-	 * Sets the font and font size to use for the entire output process.
-	 * Size units are in points.
-	 *
-	 * @param string $name The font type to use
-	 * @param int $size The font size to use in units of points.
-	 *
-	 */
-	public function setFont($type = 3, $size = 10) {
-		$types = array (
-			'1' => Zend_Pdf_Font::FONT_COURIER, '1b' => Zend_Pdf_Font::FONT_COURIER_BOLD, '2' => Zend_Pdf_Font::FONT_HELVETICA, '2b' => Zend_Pdf_Font::FONT_HELVETICA_BOLD, '3' => Zend_Pdf_Font::FONT_TIMES, '3b' => Zend_Pdf_Font::FONT_TIMES_BOLD 
-		);
-		
-		$this->_font = Zend_Pdf_Font::fontWithName ( $types [$type] );
-		$this->_fontBold = Zend_Pdf_Font::fontWithName ( $types [$type . 'b'] );
-		$this->_fontType = $type;
-		$this->_fontSize = $size;
 	}
 	
 	/**
@@ -348,84 +303,33 @@ class SirShurf_Pdf_TableSet {
 	/**
 	 * Adds a new row to the model with no columns. Moves the row pointer to the new row.
 	 *
-	 * @param object $param - An object of type Zend_Pdf_Table
+	 * @param array $options
+	 * @return SirShurf_Pdf_TableSet_Table
 	 */
 	public function addTable(array $options = array()) {
-		$this->_tables [$this->_numTables] = new SirShurf_Pdf_TableSet_Table ( $options );
-		$table = $this->_tables [$this->_numTables];
-		$this->_numTables ++;
+		$table = new SirShurf_Pdf_TableSet_Table ( $options );
+		$this->_tables [] = $table;		
 		return $table;
 	}
 	
-	/**
-	 * Wraps the given text to the colWidth provided.
-	 *
-	 * @param string text - The text to wrap
-	 * @param int colWidth - The width of a column
-	 * @param object font - The font to use.
-	 * @param int fontSize - The font size in use.
-	 *
-	 * @return array - An array of wrapped text, one line per row.
+	/** 
+	 * Get Object with Current Page
+	 * 
+	 * @return Zend_Pdf_Page
 	 */
-	private function _wrapText($text, $colWidth, $font, $fontSize) {
-		// Return if empty string.
-		if (strlen ( $text ) == 0) {
-			return array ();
-		}
-		
-		// Find the length of the entire string in points.
-		$length = $this->_getWidth ( $text, $font, $fontSize );
-		$length10 = $this->_getWidth ( $text, $font, 10 );
-		
-		// Find out the average length of an individual character.
-		$avg = intval ( ($length / strlen ( $text )) + 0.5 );
-		
-		// If something is horribly wrong
-		if ($avg == 0) {
-			return array ();
-		}
-		
-		// How many characters to wrap at, given the size of the cell.
-		$numToWrap = intval ( ($colWidth / $avg) + 0.5 );
-		
-		// Tolerance within 4 characters:
-		if (strlen ( $text ) - $numToWrap <= 4) {
-			$numToWrap = strlen ( $text );
-		}
-		
-		$newText = explode ( '<br>', wordwrap ( $text, $numToWrap, '<br>' ) );
-		
-		return $newText;
+	public function getCurrentObject(){
+		return $this->_pdf->pages [$this->_currentPage];
 	}
 	
-	/**
-	 * Returns the width of the string, in points.
-	 *
-	 * @param string text - The text to wrap
-	 * @param object font - The font to use.
-	 * @param int fontSize - The font size in use.
-	 *
-	 */
-	private function _getWidth($text, $font, $fontSize) {
-		// Collect information on each character.
-		$characters2 = str_split ( $text );
-		$characters = array_map ( 'ord', str_split ( $text ) );
-		
-		// Find out the units being used for the current font.
-		$glyphs = $font->glyphNumbersForCharacters ( $characters );
-		$widths = $font->widthsForGlyphs ( $glyphs );
-		//$units  = ($font->getUnitsPerEm() * $fontSize) / 10;
-		$units = $font->getUnitsPerEm ();
-		
-		// Calculate the length of the string.
-		$length = intval ( (array_sum ( $widths ) / $units) + 0.5 ) * $fontSize;
-		
-		foreach ( $characters as $num => $character ) {
-			$ratio [$num] = $widths [$num] / $units;
-		}
-		
-		return intval ( array_sum ( $ratio ) * $fontSize );
-	
-		//return $length;
+	public function getCurrentRow(){
+		return $this->_currentHeight;
 	}
+
+	public function getCurrentPosition(){
+		return $this->_currentWidth;
+	}
+	public function getCurrentPage(){
+		return $this->_currentPage;
+	}
+	
 }

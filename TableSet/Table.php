@@ -25,6 +25,52 @@ class SirShurf_Pdf_TableSet_Table implements IteratorAggregate {
 	 */
 	private $_options;
 	
+		/**
+	 * The Font to use for text output. Options are:
+	 * Zend_Pdf_Font::FONT_COURIER
+	 * Zend_Pdf_Font::FONT_COURIER_BOLD
+	 * Zend_Pdf_Font::FONT_COURIER_OBLIQUE (identical to Zend_Pdf_Font::FONT_COURIER_ITALIC)
+	 * Zend_Pdf_Font::FONT_COURIER_BOLD_OBLIQUE (identical to Zend_Pdf_Font::FONT_COURIER_BOLD_ITALIC)
+	 * Zend_Pdf_Font::FONT_HELVETICA
+	 * Zend_Pdf_Font::FONT_HELVETICA_BOLD
+	 * Zend_Pdf_Font::FONT_HELVETICA_OBLIQUE (identical to Zend_Pdf_Font::FONT_HELVETICA_ITALIC)
+	 * Zend_Pdf_Font::FONT_HELVETICA_BOLD_OBLIQUE (identical to Zend_Pdf_Font::FONT_HELVETICA_BOLD_ITALIC)
+	 * Zend_Pdf_Font::FONT_SYMBOL
+	 * Zend_Pdf_Font::FONT_TIMES_ROMAN
+	 * Zend_Pdf_Font::FONT_TIMES
+	 * Zend_Pdf_Font::FONT_TIMES_BOLD
+	 * Zend_Pdf_Font::FONT_TIMES_ITALIC
+	 * Zend_Pdf_Font::FONT_ZAPFDINGBATS
+	 *
+	 * @var object
+	 */
+	private $_font;
+	private $_fontBold;
+	
+	/**
+	 * The font size to use for text output. Units are Points.
+	 * The type stores the currently used type.
+	 *
+	 * @var int
+	 */
+	private $_fontSize;
+	private $_fontType;
+		
+	private $_heightMargin;
+	private $_sideMargin;
+	private $_currentHeight;
+	private $_maxHeight;
+	private $_maxWidth;
+	
+	
+	/**
+	 * 
+	 * Pdf Table Set Object
+	 * @var SirShurf_Pdf_TableSet
+	 */
+	private $_pdfTableSet;
+	
+	
 	/**
 	 * Instantiates the row class.
 	 *
@@ -34,6 +80,8 @@ class SirShurf_Pdf_TableSet_Table implements IteratorAggregate {
 		$this->_rows = array ();
 		$this->_numRows = 0;
 		$this->_options = $options;
+		
+		$this->setFont ();
 	}
 	
 	/**
@@ -240,11 +288,20 @@ class SirShurf_Pdf_TableSet_Table implements IteratorAggregate {
 		//return $length;
 	}
 	
-	public function redner() {
+	public function setMax($maxHeight, $maxWidth){
+		$this->_maxHeight = $maxHeight;
+		$this->_maxWidth = $maxWidth;
+		return $this;
+	}
+	
+	public function render() {
 		// Maximum usable space for a row.
 		$maxWidth = ($this->_maxWidth - ($this->_sideMargin * 2));
 		
 		// Gather some information about the table.
+		/**
+		 * @todo incorrect width calculation...
+		 */
 		$colWidths = $this->getColWidths ( $this->_font, $this->_fontBold, $maxWidth );
 		
 		// Highest number of columns in a single row.
@@ -263,12 +320,75 @@ class SirShurf_Pdf_TableSet_Table implements IteratorAggregate {
 				}
 			}
 		}
-		
-		foreach ( $this as $row ) {
-			$row->render();
+			// Center the table if the flag is set.
+		if ($this->getOption ( 'align' ) == 'center') {
+			// Calculate the distance between the width of the table and the margins.
+			$difference = ($maxWidth - $tableWidth) / 2;
+			if ($difference < 0) {
+				$difference = 0;
+			}
+			$x = $this->_sideMargin + $difference;
+		} else {
+			$x = $this->_sideMargin;
 		}
 		
-		return $this;	
+		// Wrap the page if necessary.
+		if ($this->_currentHeight <= ($this->_heightMargin / 2)) {
+			$this->_currentPage ++;
+			$pdf->pages [$this->_currentPage] = $this->_pdf->newPage ( $this->_paperSize );
+			$this->setCurrentHeight($this->_maxHeight - ($this->_heightMargin));
+		}
+		
+		foreach ( $this as $row ) {
+			$row->setPdfTableSet($this->_pdfTableSet);	
+			$row->setSideMargin($x);
+			$row->setColWidths($colWidths);
+			$row->render();
+//			$this->setCurrentHeight();
+		}
+		
+		return $this->_currentHeight;	
+	}
+	
+	public function setCurrentHeight($currentHeight){
+		$this->_currentHeight = $currentHeight;
+		return $this;
+	}
+	
+	public function setMargins($sideMargin, $heightMargin){
+		$this->_sideMargin = $sideMargin;
+		$this->_heightMargin = $heightMargin;
+		return $this;
+	}
+	
+	/**
+	 * 
+	 * Set Zend Pdf Object
+	 * @param SirShurf_Pdf_TableSet $pdf
+	 * @return SirShurf_Pdf_TableSet
+	 */
+	public function setPdfTableSet(SirShurf_Pdf_TableSet $pdfTableSet) {
+		$this->_pdfTableSet = $pdfTableSet;
+		return $this;
+	}
+	
+	/**
+	 * Sets the font and font size to use for the entire output process.
+	 * Size units are in points.
+	 *
+	 * @param string $name The font type to use
+	 * @param int $size The font size to use in units of points.
+	 *
+	 */
+	public function setFont($type = 3, $size = 10) {
+		$types = array (
+			'1' => Zend_Pdf_Font::FONT_COURIER, '1b' => Zend_Pdf_Font::FONT_COURIER_BOLD, '2' => Zend_Pdf_Font::FONT_HELVETICA, '2b' => Zend_Pdf_Font::FONT_HELVETICA_BOLD, '3' => Zend_Pdf_Font::FONT_TIMES, '3b' => Zend_Pdf_Font::FONT_TIMES_BOLD 
+		);
+		
+		$this->_font = Zend_Pdf_Font::fontWithName ( $types [$type] );
+		$this->_fontBold = Zend_Pdf_Font::fontWithName ( $types [$type . 'b'] );
+		$this->_fontType = $type;
+		$this->_fontSize = $size;
 	}
 
 }
