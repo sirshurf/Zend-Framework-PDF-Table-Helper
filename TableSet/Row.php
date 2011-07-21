@@ -50,7 +50,7 @@ class SirShurf_Pdf_TableSet_Row implements Iterator, Countable {
 	 *
 	 */
 	public function addCol($text = "", $options = array()) {
-		$this->_cols [$this->_numCols] = new SirShurf_Pdf_TableSet_Column ( $text, $options );
+		$this->_cols [$this->_numCols] = new SirShurf_Pdf_TableSet_Cell( $text, $options );
 		
 		$this->_numCols ++;
 		
