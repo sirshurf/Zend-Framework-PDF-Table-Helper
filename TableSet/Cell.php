@@ -230,20 +230,13 @@ class SirShurf_Pdf_TableSet_Cell {
 		$this->_pdfTableSet->getCurrentObject ()->setFont ( $font, $this->_fontSize );
 		
 		// Safe to add any borders now.
-		// Border-Right
-		if ($this->getOption ( 'border-right' )) {
-			$colors = explode ( ',', $this->getOption ( 'border-right' ) );
-			$this->_pdfTableSet->getCurrentObject ()->setLineColor ( new Zend_Pdf_Color_Rgb ( $colors [0], $colors [1], $colors [2] ) );
-			// Draw the right border.
-			$top = $this->_pdfTableSet->getCurrentRow () + $this->_fontSize;
-			$this->_pdfTableSet->getCurrentObject ()->drawLine ( $x + $offset, $top, $x + $offset, $this->_pdfTableSet->getCurrentRow () );
-		}
+		$this->_drowCellBorder($x, $offset);
 		
 		// Draw the text.
 		// Perform the alignment calculations. Has to be done after text-wrapping.
 		$align = $this->getOption ( 'align' );
 		$length = $this->_getWidth ( $this->getText (), $font, $this->_fontSize );
-		$length10 = $this->_getWidth ( $this->getText (), $font, 10 );
+//		$length10 = $this->_getWidth ( $this->getText (), $font, 10 );
 		
 		switch ($align) {
 			case 'center' :
@@ -276,7 +269,7 @@ class SirShurf_Pdf_TableSet_Cell {
 		
 
 		// Finally, draw the text in question.
-		$tempHeight = $this->_pdfTableSet->getCurrentRow ();
+		$tempHeight = $this->_pdfTableSet->getCurrentRow () + intval ( ($this->_font->getLineHeight () /  $this->_font->getUnitsPerEm ()) );
 		foreach ( $text as $key => $line ) {
 			$this->_pdfTableSet->getCurrentObject ()->drawText ( $line, $leftBound + $this->getOption ( 'indent-left' ), $tempHeight, 'UTF-8' );
 			if ($key < ($numLines - 1)) {
@@ -287,15 +280,58 @@ class SirShurf_Pdf_TableSet_Cell {
 		// Move the x-axis cursor, plus any padding.
 		$x += $offset;
 		
-		// Restore Font Size to default.
-		if ($this->getOption ( 'size' )) {
-			$this->setFont ();
-		}
-		
 		// Move the line height pointer by the number of actual lines drawn (> 1 when line wrapping).
 		$this->setLineHeight ( $numLines );
 		
 		return $x;
+	}
+	
+	/**
+	 * 
+	 * Drow Cell Border 
+	 * 
+	 * @param int $startLine
+	 * @param int $width
+	 * 
+	 * @return SirShurf_Pdf_TableSet_Cell
+	 */
+	private function _drowCellBorder($startLine, $width){
+		
+		$lineLeading = intval ( ($this->_font->getLineHeight () /  $this->_font->getUnitsPerEm ()) );
+			
+		if ($this->getOption ( 'border-left' )) {
+			$colors = explode ( ',', $this->getOption ( 'border-left' ) );
+			$this->_pdfTableSet->getCurrentObject ()->setLineColor ( new Zend_Pdf_Color_Rgb ( $colors [0], $colors [1], $colors [2] ) );
+			// Draw the right border.
+			$top = $this->_pdfTableSet->getCurrentRow () + $this->_fontSize;
+			$this->_pdfTableSet->getCurrentObject ()->drawLine ( $startLine, $top, $startLine, $this->_pdfTableSet->getCurrentRow ()-$lineLeading );
+		}
+	
+		if ($this->getOption ( 'border-right' )) {
+			$colors = explode ( ',', $this->getOption ( 'border-right' ) );
+			$this->_pdfTableSet->getCurrentObject ()->setLineColor ( new Zend_Pdf_Color_Rgb ( $colors [0], $colors [1], $colors [2] ) );
+			// Draw the right border.
+			$top = $this->_pdfTableSet->getCurrentRow () + $this->_fontSize;
+			$this->_pdfTableSet->getCurrentObject ()->drawLine ( $startLine + $width, $top, $startLine + $width, $this->_pdfTableSet->getCurrentRow ()-$lineLeading );
+		}
+	
+		if ($this->getOption ( 'border-top' )) {
+			$colors = explode ( ',', $this->getOption ( 'border-top' ) );
+			$this->_pdfTableSet->getCurrentObject ()->setLineColor ( new Zend_Pdf_Color_Rgb ( $colors [0], $colors [1], $colors [2] ) );
+			// Draw the top border.
+			$top = $this->_pdfTableSet->getCurrentRow () + $this->_fontSize;
+			$this->_pdfTableSet->getCurrentObject ()->drawLine ( $startLine, $top, $startLine + $width, $top );
+		}
+		
+		if ($this->getOption ( 'border-buttom' )) {
+			$colors = explode ( ',', $this->getOption ( 'border-buttom' ) );
+			$this->_pdfTableSet->getCurrentObject ()->setLineColor ( new Zend_Pdf_Color_Rgb ( $colors [0], $colors [1], $colors [2] ) );
+			// Draw the buttom border.
+	
+			$this->_pdfTableSet->getCurrentObject ()->drawLine ( $startLine, $this->_pdfTableSet->getCurrentRow ()-$lineLeading, $startLine + $width, $this->_pdfTableSet->getCurrentRow ()-$lineLeading );
+		}
+		
+		return $this;
 	}
 	
 	/**
@@ -304,16 +340,21 @@ class SirShurf_Pdf_TableSet_Cell {
 	public function getHeight() {
 		
 		$maxHeight = $this->getFontSize ();
-		
+				
 		// We reduce the size calculated by 10% to save on vertical space.
+		return $maxHeight ;
 		return $maxHeight * 0.9;
 	}
+	
 	
 	private function setLineHeight($numLines = 1) {
 		if (empty ( $numLines )) {
 			$numLines = 1;
 		}
-		$this->_currentHeight = $this->getHeight () * $numLines;
+
+		$lineLeading = intval ( ($this->_font->getLineHeight () /  $this->_font->getUnitsPerEm ()) );
+	
+		$this->_currentHeight = $this->getHeight () * $numLines + $lineLeading;
 		return $this;
 	}
 	
@@ -384,6 +425,7 @@ class SirShurf_Pdf_TableSet_Cell {
 		// Calculate the length of the string.
 		$length = intval ( (array_sum ( $widths ) / $units) + 0.5 ) * $fontSize;
 		
+		$ratio = array();
 		foreach ( $characters as $num => $character ) {
 			$ratio [$num] = $widths [$num] / $units;
 		}

@@ -34,6 +34,8 @@ class SirShurf_Pdf_TableSet_Row implements Iterator, Countable {
 	
 	private $_sideMargin;
 	
+	private $_intLineHeight = 0;
+	
 	/**
 	 * Instantiates the row class.
 	 *
@@ -50,7 +52,7 @@ class SirShurf_Pdf_TableSet_Row implements Iterator, Countable {
 	 *
 	 */
 	public function addCol($text = "", $options = array()) {
-		$this->_cols [$this->_numCols] = new SirShurf_Pdf_TableSet_Cell( $text, $options );
+		$this->_cols [$this->_numCols] = new SirShurf_Pdf_TableSet_Cell ( $text, $options );
 		
 		$this->_numCols ++;
 		
@@ -151,19 +153,19 @@ class SirShurf_Pdf_TableSet_Row implements Iterator, Countable {
 			
 			$this->findMaxHeight ( $col->getColumngHeight () );
 		}
-		$this->setCurrentHeight();
-		return $this->_currentHeight;
+		$this->setCurrentHeight ();
+//		return $this->_currentHeight;
 	}
 	
-	public function findMaxHeight($intHeight) {	
-		if ($this->intLineHeight < $intHeight){
-			$this->intLineHeight = $intHeight;
+	public function findMaxHeight($intHeight) {
+		if ($this->_intLineHeight < $intHeight) {
+			$this->_intLineHeight = $intHeight;
 		}
 		return $this;
-	}	
+	}
 	
-	public function setCurrentHeight() {			
-		$this->_pdfTableSet->setHeight($this->_pdfTableSet->getCurrentRow() - $this->intLineHeight);
+	public function setCurrentHeight() {
+		$this->_pdfTableSet->setHeight ( $this->_pdfTableSet->getCurrentRow () - $this->_intLineHeight );
 		return $this;
 	}
 	
