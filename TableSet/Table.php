@@ -142,21 +142,22 @@ class SirShurf_Pdf_TableSet_Table implements IteratorAggregate {
 		$sizes = array ();
 		$maxCols = $this->getMaxCols ();
 		
-		foreach ( $this->_rows as $row ) {
+		foreach ( $this as $row ) {
 			$realKey = 0;
 			foreach ( $row as $key => $col ) {
-				$usedFont = $font;
+				$usedFont = $col->getFont();
 				$options = $col->getOptions ();
 				
 				// If using a bold weight font, the widths change.
 				if ($col->getOption ( 'bold' )) {
-					$usedFont = $fontBold;
+					$usedFont = $col->getFontBold();
 				}
 				
-				$length = $this->_getWidth ( $col->getText (), $usedFont, $col->getOption ( 'size' ) ) + $col->getOption ( 'indent-left' );
+				$length = $col->getWidth ( $col->getText (), $usedFont, $col->getOption ( 'size' ) ) + $col->getOption ( 'indent-left' );
 				
 				// If we are doing a colspan for this column, move the column pointer forward the number spanned.
-				if ($col->getOption ( 'colspan' ) && $this->getNumRows () > 2) {
+//				if ($col->getOption ( 'colspan' ) && $this->getNumRows () > 2) {
+				if ($col->getOption ( 'colspan' ) && $this->getNumRows () > 1) {
 					// Number of columns to be spanned.
 					$numSpanned = $col->getOption ( 'colspan' );
 					
@@ -164,7 +165,7 @@ class SirShurf_Pdf_TableSet_Table implements IteratorAggregate {
 					// each spanned column.
 					for($i = 0; $i < $numSpanned; $i ++) {
 						$keySim = $realKey + $i;
-						$partLength = intval ( $length / $numSpanned );
+						$partLength = intval ( $length * $numSpanned );
 						
 						if (isset ( $sizes [$keySim] )) {
 							if ($sizes [$keySim] < $partLength) {
@@ -255,37 +256,6 @@ class SirShurf_Pdf_TableSet_Table implements IteratorAggregate {
 	 */
 	public function getIterator() {
 		return new ArrayIterator ( $this->_rows );
-	}
-	
-	/**
-	 * Returns the width of the string, in points.
-	 *
-	 * @param string text - The text to wrap
-	 * @param object font - The font to use.
-	 * @param int fontSize - The font size in use.
-	 *
-	 */
-	private function _getWidth($text, $font, $fontSize) {
-		// Collect information on each character.
-		$characters2 = str_split ( $text );
-		$characters = array_map ( 'ord', str_split ( $text ) );
-		
-		// Find out the units being used for the current font.
-		$glyphs = $font->glyphNumbersForCharacters ( $characters );
-		$widths = $font->widthsForGlyphs ( $glyphs );
-		//$units  = ($font->getUnitsPerEm() * $fontSize) / 10;
-		$units = $font->getUnitsPerEm ();
-		
-		// Calculate the length of the string.
-		$length = intval ( (array_sum ( $widths ) / $units) + 0.5 ) * $fontSize;
-		
-		foreach ( $characters as $num => $character ) {
-			$ratio [$num] = $widths [$num] / $units;
-		}
-		
-		return intval ( array_sum ( $ratio ) * $fontSize );
-	
-		//return $length;
 	}
 	
 	public function setMax($maxHeight, $maxWidth){

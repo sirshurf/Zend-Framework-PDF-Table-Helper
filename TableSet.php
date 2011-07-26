@@ -33,7 +33,7 @@ class SirShurf_Pdf_TableSet {
 	 */
 	private $_sideMargin;
 	private $_heightMargin;
-
+	
 	/**
 	 * Height and Width of the page. Based off the paper size. Units are Points.
 	 *
@@ -62,7 +62,7 @@ class SirShurf_Pdf_TableSet {
 	 *
 	 * @var array
 	 */
-	private $_tables;
+	private $_pages;
 	
 	/**
 	 * The current working table pointer.
@@ -100,7 +100,7 @@ class SirShurf_Pdf_TableSet {
 	private function _init() {
 		// Setup Initial Variables
 		$this->_numTables = 0;
-		$this->_tables = array ();
+		$this->_pages = array ();
 		
 		if (is_null ( $this->_currentPage )) {
 			// First Page
@@ -113,6 +113,12 @@ class SirShurf_Pdf_TableSet {
 			$this->setHeight ( $this->_maxHeight );
 		}
 		
+		return $this;
+	}
+	
+	public function addNewPage() {
+		$this->_currentPage ++;
+		$this->_pdf->pages [$this->_currentPage] = $this->_pdf->newPage ( $this->_paperSize );
 		return $this;
 	}
 	
@@ -157,27 +163,32 @@ class SirShurf_Pdf_TableSet {
 	
 	public function render() {
 		
-		// Add the header image.
-		if (! empty ( $this->_headerImage )) {
-			$this->_drawHeaderImage ();
-		} else {
-			// If no header, set the first line below the margin.
-			$this->_currentHeight = $this->_maxHeight - $this->_heightMargin;
-		}
-		
-		// Layout all columns.
-		foreach ( $this->_tables as $table ) {
-			$table->setPdfTableSet($this);
-			$table->setMax($this->_maxHeight, $this->_maxWidth);
-			$table->setCurrentHeight($this->_currentHeight);
-			$table->setMargins($this->_sideMargin, $this->_heightMargin);
-			$table->render();
-//			$this->setHeight();
-		}
-		
-		// Add the signature
-		if (! empty ( $this->_signatureFile )) {
-			$this->_drawFooterImage ( $this->_currentHeight, $this->_currentPage );
+		foreach ( $this->_pages as $intPageId => $page ) {
+			$this->_currentPage = $intPageId;
+			
+			// Add the header image.
+			if (! empty ( $this->_headerImage )) {
+				$this->_drawHeaderImage ();
+			} else {
+				// If no header, set the first line below the margin.
+				$this->_currentHeight = $this->_maxHeight - $this->_heightMargin;
+			}
+			
+			// Layout all columns.
+			foreach ( $page as $table ) {
+				$table->setPdfTableSet ( $this );
+				$table->setMax ( $this->_maxHeight, $this->_maxWidth );
+				$table->setCurrentHeight ( $this->_currentHeight );
+				$table->setMargins ( $this->_sideMargin, $this->_heightMargin );
+				$table->render ();
+			
+		//			$this->setHeight();
+			}
+			
+			// Add the signature
+			if (! empty ( $this->_signatureFile )) {
+				$this->_drawFooterImage ( $this->_currentHeight, $this->_currentPage );
+			}
 		}
 		
 		return $this->_pdf;
@@ -308,7 +319,7 @@ class SirShurf_Pdf_TableSet {
 	 */
 	public function addTable(array $options = array()) {
 		$table = new SirShurf_Pdf_TableSet_Table ( $options );
-		$this->_tables [] = $table;		
+		$this->_pages[$this->_currentPage] [] = $table;
 		return $table;
 	}
 	
@@ -317,19 +328,19 @@ class SirShurf_Pdf_TableSet {
 	 * 
 	 * @return Zend_Pdf_Page
 	 */
-	public function getCurrentObject(){
+	public function getCurrentObject() {
 		return $this->_pdf->pages [$this->_currentPage];
 	}
 	
-	public function getCurrentRow(){
+	public function getCurrentRow() {
 		return $this->_currentHeight;
 	}
-
-	public function getCurrentPosition(){
+	
+	public function getCurrentPosition() {
 		return $this->_currentWidth;
 	}
-	public function getCurrentPage(){
+	public function getCurrentPage() {
 		return $this->_currentPage;
 	}
-	
+
 }
